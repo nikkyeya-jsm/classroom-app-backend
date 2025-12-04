@@ -1,31 +1,50 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { eq, ne, inArray, ilike, and } from 'drizzle-orm';
+import { eq, ne, inArray, ilike, and, desc } from 'drizzle-orm';
 import { user } from '../db/schema.js';
 import type { UserRoles } from '@/types.js';
 
 
 const router = express.Router();
 
-// Get all users with optional role filter and search by name
+// Get all users with optional role filter, search by name, and pagination
 router.get('/', async (req, res) => {
   try {
-    const { roles, searchQuery } = req.query;
+    const { roles, searchQuery, page, limit } = req.query;
     const conditions: any[] = [];
+
+    // Pagination
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 10;
+    const offset = (pageNum - 1) * limitNum;
 
     // Role filter
     if (roles && typeof roles === 'string') {
       const roleArray = roles.split(',').map(role => role.trim()) as UserRoles[];
       conditions.push(inArray(user.role, roleArray));
-    } 
+    }
 
     // Name search
     if (searchQuery && typeof searchQuery === 'string') {
       conditions.push(ilike(user.name, `%${searchQuery}%`));
     }
 
-    const users = await db.select().from(user).where(and(...conditions));
-    res.json(users);
+    // Get total count
+    const totalResult = await db.select().from(user).where(and(...conditions));
+    const total = totalResult.length;
+
+    // Get paginated results
+    const users = await db.select().from(user).where(and(...conditions)).orderBy(desc(user.createdAt)).limit(limitNum).offset(offset);
+
+    res.json({
+      data: users,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

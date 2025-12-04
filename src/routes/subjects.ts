@@ -1,15 +1,20 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { eq, ilike, or, and } from 'drizzle-orm';
+import { eq, ilike, or, and, desc } from 'drizzle-orm';
 import { subjects } from '../db/schema.js';
 
 const router = express.Router();
 
-// Get all subjects with optional search and department filter
+// Get all subjects with optional search, department filter, and pagination
 router.get('/', async (req, res) => {
   try {
-    const { searchQuery, department } = req.query;
+    const { searchQuery, department, page, limit } = req.query;
     const conditions: any[] = [];
+
+    // Pagination
+    const pageNum = parseInt(page as string) || 1;
+    const limitNum = parseInt(limit as string) || 10;
+    const offset = (pageNum - 1) * limitNum;
 
     // Department filter
     if (department && typeof department === 'string') {
@@ -26,11 +31,26 @@ router.get('/', async (req, res) => {
       );
     }
 
-    const subjectsList = conditions.length > 0
+    // Get total count
+    const totalResult = conditions.length > 0
       ? await db.select().from(subjects).where(and(...conditions))
       : await db.select().from(subjects);
+    const total = totalResult.length;
 
-    res.json(subjectsList);
+    // Get paginated results
+    const subjectsList = conditions.length > 0
+      ? await db.select().from(subjects).where(and(...conditions)).orderBy(desc(subjects.createdAt)).limit(limitNum).offset(offset)
+      : await db.select().from(subjects).orderBy(desc(subjects.createdAt)).limit(limitNum).offset(offset);
+
+    res.json({
+      data: subjectsList,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
