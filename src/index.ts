@@ -4,6 +4,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth.js';
 // import middleware from './middleware.js';
 import userRouter from './routes/users.js';
+import subjectsRouter from './routes/subjects.js';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -25,6 +26,7 @@ app.use(express.json());
 // app.use(middleware);
 
 app.use('/users', userRouter);
+app.use('/subjects', subjectsRouter);
 
 app.get('/', async (req: any, res: any) => {
   console.log("Backend server is running!");
