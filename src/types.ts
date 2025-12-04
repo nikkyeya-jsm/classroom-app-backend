@@ -14,3 +14,5 @@ export type RegisterRequest = {
   avatarUrl?: string;
   department?: string;
 }
+
+export type UserRoles = "admin" | "teacher" | "student";
