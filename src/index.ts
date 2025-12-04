@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth.js';
-import middleware from './middleware.js';
+// import middleware from './middleware.js';
+import userRouter from './routes/users.js';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -21,11 +22,15 @@ app.all('/api/auth/{*any}', toNodeHandler(auth));
 // Mount express json middleware after Better Auth handler
 // or only apply it to routes that don't interact with Better Auth
 app.use(express.json());
-app.use(middleware);
+// app.use(middleware);
+
+app.use('/users', userRouter);
 
 app.get('/', async (req: any, res: any) => {
   console.log("Backend server is running!");
 });
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
