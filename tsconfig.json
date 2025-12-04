@@ -14,7 +14,7 @@
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "ESNext",
-    "moduleResolution": "bundler",
+    "moduleResolution": "node",
     "target": "esnext",
     "types": [],
     // For nodejs:
@@ -41,6 +41,8 @@
 
     // Recommended Options
     "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "jsx": "react-jsx",
     "verbatimModuleSyntax": true,
     "isolatedModules": true,

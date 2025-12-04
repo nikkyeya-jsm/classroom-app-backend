@@ -1,5 +1,5 @@
 import { isSpoofedBot } from '@arcjet/inspect';
-import { aj } from './lib/arcjet';
+import { aj } from './lib/arcjet.js';
 
 const middleware = async (req: any, res: any, next: any) => {
   // If NODE_ENV is TEST, skip security middleware

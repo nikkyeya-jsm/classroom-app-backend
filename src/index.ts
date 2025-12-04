@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { toNodeHandler } from 'better-auth/node';
-import { auth } from './lib/auth';
-import middleware from './middleware';
+import { auth } from './lib/auth.js';
+import middleware from './middleware.js';
 
 const app = express();
 const PORT = 8000;
@@ -23,7 +23,7 @@ app.all('/api/auth/{*any}', toNodeHandler(auth));
 app.use(express.json());
 app.use(middleware);
 
-app.get('/', async (req, res) => {
+app.get('/', async (req: any, res: any) => {
   console.log("Backend server is running!");
 });
 
