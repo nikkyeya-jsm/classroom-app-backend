@@ -70,7 +70,7 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Subject not found' });
     }
 
-    res.json(subject[0]);
+    res.json(subject);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });

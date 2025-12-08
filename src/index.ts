@@ -5,6 +5,7 @@ import { auth } from './lib/auth.js';
 // import middleware from './middleware.js';
 import userRouter from './routes/users.js';
 import subjectsRouter from './routes/subjects.js';
+import classesRouter from './routes/classes.js';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -27,6 +28,7 @@ app.use(express.json());
 
 app.use('/users', userRouter);
 app.use('/subjects', subjectsRouter);
+app.use('/classes', classesRouter);
 
 app.get('/', async (req: any, res: any) => {
   console.log("Backend server is running!");

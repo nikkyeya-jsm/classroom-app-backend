@@ -1,8 +1,15 @@
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, index, pgEnum, integer, varchar, time, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, index, pgEnum, integer, varchar, jsonb } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("role", ["admin", "teacher", "student"]);
 export const classStatusEnum = pgEnum("class_status", ["active", "inactive", "full"]);
+
+// Type for class schedules stored as JSON
+export type ClassSchedule = {
+  day: string;
+  startTime: string;
+  endTime: string;
+};
 
 // ============================================================================
 // BETTER AUTH TABLES 
@@ -107,15 +114,17 @@ export const subjects = pgTable("subjects", {
 export const classes = pgTable("classes", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: varchar("name", { length: 255 }).notNull(),
+  inviteCode: varchar("invite_code", { length: 20 }).unique().notNull(), // Unique joining code (e.g., "ABC123")
   subjectId: integer("subject_id")
     .references(() => subjects.id, { onDelete: "cascade" })
     .notNull(),
   teacherId: text("teacher_id").notNull(), // References Better Auth users.id (teacher role)
-  code: varchar("code", { length: 20 }).unique().notNull(), // 6-8 character joining code (e.g., "ABC123")
   description: text("description"),
   bannerUrl: text("banner_url"), // URL for class banner image
+  bannerCldPubId: text("imageCldPubId"),
   capacity: integer("capacity").default(50), // Maximum number of students
   status: classStatusEnum("status").notNull().default("active"),
+  schedules: jsonb("schedules").$type<ClassSchedule[]>().default([]).notNull(), // Array of class schedules
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
@@ -139,27 +148,6 @@ export const enrollments = pgTable("enrollments", {
     .notNull(),
 });
 
-// 4. CLASS_SCHEDULES TABLE
-// Purpose: Store class meeting times and locations (one-to-many with classes)
-// Allows querying by day/time and detecting schedule conflicts
-export const classSchedules = pgTable("class_schedules", {
-  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  classId: integer("class_id")
-    .references(() => classes.id, { onDelete: "cascade" })
-    .notNull(),
-  dayOfWeek: integer("day_of_week").notNull(), // 0-6 (Sunday=0, Monday=1, ..., Saturday=6)
-  startTime: time("start_time").notNull(), // PostgreSQL time type (e.g., "09:00:00", "14:30:00")
-  endTime: time("end_time").notNull(), // PostgreSQL time type (e.g., "10:30:00", "16:00:00")
-  room: varchar("room", { length: 100 }), // Room number/location (e.g., "Room 101", "Lab A")
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-}, (table) => [
-  // Prevent duplicate schedules for the same class at the same day/time
-  uniqueIndex("class_schedules_unique").on(table.classId, table.dayOfWeek, table.startTime),
-]);
 
 // ============================================================================
 // RELATIONS 
@@ -192,17 +180,12 @@ export const subjectsRelations = relations(subjects, ({ many }) => ({
 export const classesRelations = relations(classes, ({ one, many }) => ({
   subject: one(subjects, { fields: [classes.subjectId], references: [subjects.id] }),
   enrollments: many(enrollments),
-  schedules: many(classSchedules),
   // Teacher relationship: classes.teacherId → users.id (handled by Better Auth)
 }));
 
 export const enrollmentsRelations = relations(enrollments, ({ one }) => ({
   class: one(classes, { fields: [enrollments.classId], references: [classes.id] }),
   // Student relationship: enrollments.studentId → users.id (handled by Better Auth)
-}));
-
-export const classSchedulesRelations = relations(classSchedules, ({ one }) => ({
-  class: one(classes, { fields: [classSchedules.classId], references: [classes.id] }),
 }));
 
 

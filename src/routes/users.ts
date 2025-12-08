@@ -1,6 +1,6 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { eq, ne, inArray, ilike, and, desc } from 'drizzle-orm';
+import { eq, inArray, ilike, and, desc } from 'drizzle-orm';
 import { user } from '../db/schema.js';
 import type { UserRoles } from '@/types.js';
 
@@ -54,11 +54,12 @@ router.get('/', async (req, res) => {
 // Get user by ID
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
-
+ 
   try {
     const userData = await db.select().from(user).where(eq(user.id, id));
     if (!userData) return res.status(404).json({ error: 'User not found' });
-    res.json(userData[0]);
+   
+    res.json(userData);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -80,8 +81,31 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log("Updated user:", updatedUser);
+
     res.json(updatedUser);
 
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Delete subject
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedUser = await db
+      .delete(user)
+      .where(eq(user.id, id))
+      .returning();
+
+    if (!deletedUser || deletedUser.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully', user: deletedUser[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
