@@ -177,15 +177,15 @@ export const subjectsRelations = relations(subjects, ({ many }) => ({
   classes: many(classes),
 }));
 
+// Teacher relationship: classes.teacherId → users.id (handled by Better Auth)
 export const classesRelations = relations(classes, ({ one, many }) => ({
   subject: one(subjects, { fields: [classes.subjectId], references: [subjects.id] }),
   enrollments: many(enrollments),
-  // Teacher relationship: classes.teacherId → users.id (handled by Better Auth)
 }));
 
+// Student relationship: enrollments.studentId → users.id (handled by Better Auth)
 export const enrollmentsRelations = relations(enrollments, ({ one }) => ({
   class: one(classes, { fields: [enrollments.classId], references: [classes.id] }),
-  // Student relationship: enrollments.studentId → users.id (handled by Better Auth)
 }));
 
 

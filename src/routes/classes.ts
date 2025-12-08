@@ -2,7 +2,6 @@ import express from 'express';
 import { db } from '../db/index.js';
 import { eq, ilike, or, and, desc, getTableColumns } from 'drizzle-orm';
 import { classes, subjects, user, enrollments } from '../db/schema.js';
-import { generateUniqueClassCode } from '../utils/generateClassCode.js';
 
 const router = express.Router();
 
@@ -40,15 +39,8 @@ router.get('/', async (req, res) => {
     let query = db
       .select({
         ...getTableColumns(classes),
-        subject: {
-          id: subjects.id,
-          name: subjects.name,
-          code: subjects.code,
-        },
-        teacher: {
-          id: user.id,
-          name: user.name,
-        },
+        subject: subjects,
+        teacher: user,
       })
       .from(classes)
       .leftJoin(subjects, eq(classes.subjectId, subjects.id))
@@ -66,6 +58,7 @@ router.get('/', async (req, res) => {
 
     // Get paginated results
     const classesList = await query.orderBy(desc(classes.createdAt)).limit(limitNum).offset(offset);
+    
 
     res.json({
       data: classesList,
@@ -82,24 +75,47 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get subject by ID
+// Get class by ID with enrolled students
 router.get('/:id', async (req, res) => {
-
-
   try {
     const { id } = req.params;
+    const classId = parseInt(id);
+
+    // Get class data with subject and teacher
     const classData = await db
-      .select()
+     .select({
+        ...getTableColumns(classes),
+        subject: subjects,
+        teacher: user,
+      })
       .from(classes)
-      .where(eq(classes.id, parseInt(id)));
+      .leftJoin(subjects, eq(classes.subjectId, subjects.id))
+      .leftJoin(user, eq(classes.teacherId, user.id))
+      .where(eq(classes.id, classId));
 
     if (!classData || classData.length === 0) {
       return res.status(404).json({ error: 'Class not found' });
     }
 
-      console.log("Fetching class data:", classData);
+    // Get enrolled students
+    const students = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        enrollmentId: enrollments.id,
+        enrolledAt: enrollments.enrolledAt,
+      })
+      .from(enrollments)
+      .innerJoin(user, eq(enrollments.studentId, user.id))
+      .where(eq(enrollments.classId, classId))
+      .orderBy(desc(enrollments.enrolledAt));
 
-    res.json(classData);
+
+    res.json([{
+      ...classData[0],
+      students: students || [],
+    }]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
@@ -109,35 +125,21 @@ router.get('/:id', async (req, res) => {
 // Create new class with auto-generated code
 router.post('/', async (req, res) => {
   try {
-    const { name, subjectId, teacherId, description, capacity, schedules } = req.body;
+    const { name, subjectId, teacherId } = req.body;
 
     // Validate required fields
     if (!name || !subjectId || !teacherId) {
       return res.status(400).json({ error: 'Name, subjectId, and teacherId are required' });
     }
 
-    // Generate unique class invite code
-    const inviteCode = await generateUniqueClassCode();
-
     const newClass = await db
       .insert(classes)
-      .values({
-        ...req.body,
-        inviteCode
-      })
+      .values({...req.body})
       .returning();
-
-      console.log("Created new class backend:", newClass[0]);
 
     res.status(201).json(newClass[0]);
   } catch (err: any) {
     console.error(err);
-
-    // Handle unique constraint violation (duplicate code)
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'Class code already exists' });
-    }
-
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -163,12 +165,6 @@ router.put('/:id', async (req, res) => {
     res.json(updatedClass[0]);
   } catch (err: any) {
     console.error(err);
-
-    // Handle unique constraint violation (duplicate code)
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'Subject code already exists' });
-    }
-
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -188,118 +184,6 @@ router.delete('/:id', async (req, res) => {
     }
 
     res.json({ message: 'Class deleted successfully', class: deletedClass[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Regenerate class code
-router.post('/:id/regenerate-code', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Check if class exists
-    const existingClass = await db
-      .select()
-      .from(classes)
-      .where(eq(classes.id, parseInt(id)));
-
-    if (!existingClass || existingClass.length === 0) {
-      return res.status(404).json({ error: 'Class not found' });
-    }
-
-    // Generate new unique code
-    const newCode = await generateUniqueClassCode();
-
-    // Update class with new invite code
-    const updatedClass = await db
-      .update(classes)
-      .set({ inviteCode: newCode })
-      .where(eq(classes.id, parseInt(id)))
-      .returning();
-
-    res.json({
-      message: 'Class invite code regenerated successfully',
-      inviteCode: updatedClass[0]?.inviteCode,
-      class: updatedClass[0],
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Join class by invite code
-router.post('/join', async (req, res) => {
-  try {
-    const { inviteCode, studentId } = req.body;
-
-    // Validate required fields
-    if (!inviteCode || !studentId) {
-      return res.status(400).json({ error: 'inviteCode and studentId are required' });
-    }
-
-    // Find class by invite code
-    const classToJoin = await db
-      .select()
-      .from(classes)
-      .where(eq(classes.inviteCode, inviteCode.toUpperCase()));
-
-    if (!classToJoin || classToJoin.length === 0) {
-      return res.status(404).json({ error: 'Invalid class code' });
-    }
-
-    const classData = classToJoin[0];
-
-    if (!classData) {
-      return res.status(404).json({ error: 'Invalid class code' });
-    }
-
-    // Check if class is active
-    if (classData.status !== 'active') {
-      return res.status(400).json({ error: 'This class is not accepting new students' });
-    }
-
-    // Check if student is already enrolled
-    const existingEnrollment = await db
-      .select()
-      .from(enrollments)
-      .where(
-        and(
-          eq(enrollments.classId, classData.id),
-          eq(enrollments.studentId, studentId)
-        )
-      );
-
-    if (existingEnrollment && existingEnrollment.length > 0) {
-      return res.status(409).json({ error: 'You are already enrolled in this class' });
-    }
-
-    // Check class capacity
-    const currentEnrollments = await db
-      .select()
-      .from(enrollments)
-      .where(eq(enrollments.classId, classData.id));
-
-    if (currentEnrollments.length >= (classData.capacity || 50)) {
-      return res.status(400).json({ error: 'This class is full' });
-    }
-
-    // Enroll student
-    const newEnrollment = await db
-      .insert(enrollments)
-      .values({
-        studentId,
-        classId: classData.id,
-      })
-      .returning();
-
-    res.status(201).json({
-      message: 'Successfully joined class',
-      enrollment: newEnrollment[0],
-      class: classData,
-    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal server error' });
