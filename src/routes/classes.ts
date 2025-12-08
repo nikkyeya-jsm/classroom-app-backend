@@ -122,15 +122,12 @@ router.post('/', async (req, res) => {
     const newClass = await db
       .insert(classes)
       .values({
-        name,
-        inviteCode,
-        subjectId,
-        teacherId,
-        description: description || null,
-        capacity: capacity || 50,
-        schedules: schedules || [],
+        ...req.body,
+        inviteCode
       })
       .returning();
+
+      console.log("Created new class backend:", newClass[0]);
 
     res.status(201).json(newClass[0]);
   } catch (err: any) {
