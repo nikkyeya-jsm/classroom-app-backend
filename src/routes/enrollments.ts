@@ -30,16 +30,8 @@ router.get('/', async (req, res) => {
             classId: enrollments.classId,
             enrolledAt: enrollments.enrolledAt,
             updatedAt: enrollments.updatedAt,
-            class: {
-              id: classes.id,
-              name: classes.name,
-              inviteCode: classes.inviteCode,
-            },
-            student: {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-            },
+            class: classes,
+            student: user,
           })
           .from(enrollments)
           .leftJoin(classes, eq(enrollments.classId, classes.id))
@@ -53,16 +45,8 @@ router.get('/', async (req, res) => {
             classId: enrollments.classId,
             enrolledAt: enrollments.enrolledAt,
             updatedAt: enrollments.updatedAt,
-            class: {
-              id: classes.id,
-              name: classes.name,
-              inviteCode: classes.inviteCode,
-            },
-            student: {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-            },
+            class: classes,
+            student: user,
           })
           .from(enrollments)
           .leftJoin(classes, eq(enrollments.classId, classes.id))
