@@ -6,20 +6,20 @@ import type { UserRoles } from './types.js';
 // Predefine role-based sliding window clients
 const slidingWindows = {
   admin: aj.withRule(
-    slidingWindow({ mode: 'LIVE', interval: '1m', max: 20 })
+    slidingWindow({ mode: 'LIVE', interval: '1m', max: 200 })
   ),
   teacher: aj.withRule(
-    slidingWindow({ mode: 'LIVE', interval: '1m', max: 10 })
+    slidingWindow({ mode: 'LIVE', interval: '1m', max: 100 })
   ),
   student: aj.withRule(
-    slidingWindow({ mode: 'LIVE', interval: '1m', max: 5 })
+    slidingWindow({ mode: 'LIVE', interval: '1m', max: 50 })
   ),
 };
 
 const messages = {
-  admin: 'Admin request limit exceeded (20 per minute). Slow down!',
-  teacher: 'Teacher request limit exceeded (10 per minute). Please wait.',
-  student: 'Guest request limit exceeded (5 per minute). Sign up for higher limits.',
+  admin: 'Admin request limit exceeded (200 per minute). Slow down!',
+  teacher: 'Teacher request limit exceeded (100 per minute). Please wait.',
+  student: 'Guest request limit exceeded (50 per minute). Sign up for higher limits.',
 };
 
 const middleware = async (req: any, res: any, next: any) => {
@@ -29,7 +29,8 @@ const middleware = async (req: any, res: any, next: any) => {
   console.log('Arcjet middleware invoked');
 
   try {
-    const role = req.user?.role || 'student';
+    const role = (req.headers['x-user-role'] as UserRoles) || 'student';
+    console.log("User role detected:", role);
     const client = slidingWindows[role as UserRoles] || slidingWindows['student'];
     const message = messages[role as UserRoles] || messages['student'];
 
