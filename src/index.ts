@@ -6,7 +6,7 @@ import express from 'express';
 import cors from 'cors';
 import { toNodeHandler } from 'better-auth/node';
 import { auth } from './lib/auth.js';
-// import middleware from './middleware.js';
+import middleware from './middleware.js';
 import userRouter from './routes/users.js';
 import subjectsRouter from './routes/subjects.js';
 import classesRouter from './routes/classes.js';
@@ -29,7 +29,7 @@ app.all('/api/auth/{*any}', toNodeHandler(auth));
 // Mount express json middleware after Better Auth handler
 // or only apply it to routes that don't interact with Better Auth
 app.use(express.json());
-// app.use(middleware);
+app.use(middleware);
 
 app.use('/users', userRouter);
 app.use('/subjects', subjectsRouter);
