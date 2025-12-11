@@ -1,114 +1,154 @@
-import express from 'express';
-import { db } from '../db/index.js';
-import { eq, inArray, ilike, and, desc } from 'drizzle-orm';
-import { user } from '../db/schema.js';
-import type { UserRoles } from '@/types.js';
+import express from "express";
+import { eq, ilike, and, desc, sql } from "drizzle-orm";
 
+import { db } from "#db/index";
+import { user } from "#db/schemas";
+import type { UserRoles } from "#types";
 
 const router = express.Router();
 
 // Get all users with optional role filter, search by name, and pagination
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { roles, searchQuery, page, limit } = req.query;
-    const conditions: any[] = [];
+    const { role, search, page = 1, limit = 10 } = req.query;
+
+    const filterConditions: any[] = [];
 
     // Pagination
-    const pageNum = parseInt(page as string) || 1;
-    const limitNum = parseInt(limit as string) || 10;
-    const offset = (pageNum - 1) * limitNum;
+    const currentPage = Math.max(1, +page);
+    const limitPerPage = Math.max(1, +limit);
+    const offset = (currentPage - 1) * limitPerPage;
 
     // Role filter
-    if (roles && typeof roles === 'string') {
-      const roleArray = roles.split(',').map(role => role.trim()) as UserRoles[];
-      conditions.push(inArray(user.role, roleArray));
+    if (role) {
+      filterConditions.push(eq(user.role, role as UserRoles));
     }
 
     // Name search
-    if (searchQuery && typeof searchQuery === 'string') {
-      conditions.push(ilike(user.name, `%${searchQuery}%`));
+    if (search) {
+      filterConditions.push(ilike(user.name, `%${search}%`));
     }
 
-    // Get total count
-    const totalResult = await db.select().from(user).where(and(...conditions));
-    const total = totalResult.length;
+    const whereClause =
+      filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
-    // Get paginated results
-    const users = await db.select().from(user).where(and(...conditions)).orderBy(desc(user.createdAt)).limit(limitNum).offset(offset);
+    // Count total
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(user)
+      .where(whereClause);
 
-    res.json({
-      data: users,
+    const totalCount = countResult[0]?.count ?? 0;
+
+    const usersList = await db
+      .select()
+      .from(user)
+      .where(whereClause)
+      .orderBy(desc(user.createdAt))
+      .limit(limitPerPage)
+      .offset(offset);
+
+    res.status(200).json({
+      data: usersList,
       pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages: Math.ceil(total / limitNum),
+        page: currentPage,
+        limit: limitPerPage,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitPerPage),
       },
+      message: "Users retrieved successfully",
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch users",
+    });
   }
 });
 
 // Get user by ID
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   const { id } = req.params;
- 
+
   try {
-    const userData = await db.select().from(user).where(eq(user.id, id));
-    if (!userData) return res.status(404).json({ error: 'User not found' });
-   
-    res.json(userData);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    const userRecords = await db.select().from(user).where(eq(user.id, id));
+
+    if (!userRecords || userRecords.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "User not found", message: "User not found" });
+    }
+
+    res.status(200).json({
+      data: userRecords,
+      message: "User retrieved successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch user",
+    });
   }
 });
 
 // Update user
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const updatedUser = await db
+    const updatedUsers = await db
       .update(user)
       .set({ ...req.body })
       .where(eq(user.id, id))
       .returning();
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!updatedUsers || updatedUsers.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "User not found", message: "User not found" });
     }
 
-    console.log("Updated user:", updatedUser);
-
-    res.json(updatedUser);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(200).json({
+      data: updatedUsers,
+      message: "User updated successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to update user",
+    });
   }
 });
 
 // Delete subject
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const deletedUser = await db
+    const deletedUsers = await db
       .delete(user)
       .where(eq(user.id, id))
       .returning();
 
-    if (!deletedUser || deletedUser.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    if (!deletedUsers || deletedUsers.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "User not found", message: "User not found" });
     }
 
-    res.json({ message: 'User deleted successfully', user: deletedUser[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(200).json({
+      data: deletedUsers[0],
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to delete user",
+    });
   }
 });
 

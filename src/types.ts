@@ -1,4 +1,3 @@
-// Type definitions for Refine Dev compatibility
 export type AuthActionResponse = {
   success: boolean;
   redirectTo?: string;
@@ -13,6 +12,6 @@ export type RegisterRequest = {
   role: "admin" | "teacher" | "student";
   avatarUrl?: string;
   department?: string;
-}
+};
 
 export type UserRoles = "admin" | "teacher" | "student";
