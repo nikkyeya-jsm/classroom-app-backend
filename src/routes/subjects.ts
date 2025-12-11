@@ -8,38 +8,40 @@ const router = express.Router();
 // Get all subjects with optional search, department filter, and pagination
 router.get("/", async (req, res) => {
   try {
-    const { query, department, page = "1", limit = "10" } = req.query;
+    const { search, department, page = 1, limit = 10 } = req.query;
 
     // Pagination (validated)
-    const pageNum = Math.max(1, Number(page));
-    const limitNum = Math.max(1, Number(limit));
-    const offset = (pageNum - 1) * limitNum;
+    const currentPage = Math.max(1, +page);
+    const limitPerPage = Math.max(1, +limit);
+    const offset = (currentPage - 1) * limitPerPage;
 
     // Build conditions (typed)
-    const conditions: (ReturnType<typeof eq> | ReturnType<typeof or>)[] = [];
+    const filterConditions: (ReturnType<typeof eq> | ReturnType<typeof or>)[] =
+      [];
 
-    if (typeof department === "string" && department.trim() !== "") {
-      conditions.push(eq(subjects.department, department));
+    if (department) {
+      filterConditions.push(eq(subjects.department, department.toString()));
     }
 
-    if (typeof query === "string" && query.trim() !== "") {
-      conditions.push(
+    if (search) {
+      filterConditions.push(
         or(
-          ilike(subjects.name, `%${query}%`),
-          ilike(subjects.code, `%${query}%`)
+          ilike(subjects.name, `%${search}%`),
+          ilike(subjects.code, `%${search}%`)
         )
       );
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause =
+      filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
     // Count total (fast!)
-    const result = await db
+    const countResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(subjects)
       .where(whereClause);
 
-    const count = result[0]?.count ?? 0;
+    const totalCount = countResult[0]?.count ?? 0;
 
     // Fetch paginated results
     const subjectsList = await db
@@ -47,23 +49,21 @@ router.get("/", async (req, res) => {
       .from(subjects)
       .where(whereClause)
       .orderBy(desc(subjects.createdAt))
-      .limit(limitNum)
+      .limit(limitPerPage)
       .offset(offset);
 
-    res.json({
-      data: {
-        subjects: subjectsList,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total: Number(count),
-          totalPages: Math.ceil(Number(count) / limitNum),
-        },
+    res.status(200).json({
+      data: subjectsList,
+      pagination: {
+        page: currentPage,
+        limit: limitPerPage,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitPerPage),
       },
       message: "Subjects retrieved successfully",
     });
-  } catch (err) {
-    console.error("GET /subjects error:", err);
+  } catch (error) {
+    console.error("GET /subjects error:", error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to fetch subjects",
@@ -75,20 +75,24 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const subject = await db
+
+    const subjectRecords = await db
       .select()
       .from(subjects)
-      .where(eq(subjects.id, parseInt(id)));
+      .where(eq(subjects.id, +id));
 
-    if (!subject || subject.length === 0) {
+    if (!subjectRecords || subjectRecords.length === 0) {
       return res
         .status(404)
         .json({ error: "Subject not found", message: "Subject not found" });
     }
 
-    res.json({ data: subject, message: "Subject retrieved successfully" });
-  } catch (err) {
-    console.error(err);
+    res.status(200).json({
+      data: subjectRecords,
+      message: "Subject retrieved successfully",
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to fetch subject",
@@ -114,8 +118,8 @@ router.post("/", async (req, res) => {
       .values({
         name,
         code,
-        description: description || null,
-        department: department || null,
+        description,
+        department,
       })
       .returning();
 
@@ -123,11 +127,11 @@ router.post("/", async (req, res) => {
       data: newSubject[0],
       message: "Subject created successfully",
     });
-  } catch (err: any) {
-    console.error(err);
+  } catch (error: any) {
+    console.error(error);
 
     // Handle unique constraint violation (duplicate code)
-    if (err.code === "23505") {
+    if (error.code === "23505") {
       return res.status(409).json({
         error: "Subject code already exists",
         message: "Subject code already exists",
@@ -155,7 +159,7 @@ router.put("/:id", async (req, res) => {
         description,
         department,
       })
-      .where(eq(subjects.id, parseInt(id)))
+      .where(eq(subjects.id, +id))
       .returning();
 
     if (!updatedSubject || updatedSubject.length === 0) {
@@ -164,15 +168,15 @@ router.put("/:id", async (req, res) => {
         .json({ error: "Subject not found", message: "Subject not found" });
     }
 
-    res.json({
+    res.status(200).json({
       data: updatedSubject[0],
       message: "Subject updated successfully",
     });
-  } catch (err: any) {
-    console.error(err);
+  } catch (error: any) {
+    console.error(error);
 
     // Handle unique constraint violation (duplicate code)
-    if (err.code === "23505") {
+    if (error.code === "23505") {
       return res.status(409).json({
         error: "Subject code already exists",
         message: "Subject code already exists",
@@ -193,7 +197,7 @@ router.delete("/:id", async (req, res) => {
 
     const deletedSubject = await db
       .delete(subjects)
-      .where(eq(subjects.id, parseInt(id)))
+      .where(eq(subjects.id, +id))
       .returning();
 
     if (!deletedSubject || deletedSubject.length === 0) {
@@ -202,12 +206,12 @@ router.delete("/:id", async (req, res) => {
         .json({ error: "Subject not found", message: "Subject not found" });
     }
 
-    res.json({
+    res.status(200).json({
       data: deletedSubject[0],
       message: "Subject deleted successfully",
     });
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to delete subject",

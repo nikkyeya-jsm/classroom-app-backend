@@ -11,21 +11,16 @@ router.get("/", async (req, res) => {
   try {
     const { student_id, class_id } = req.query;
 
-    const conditions = [];
+    const filterConditions = [];
 
     // Student filter
-    if (typeof student_id === "string" && student_id.trim() !== "") {
-      conditions.push(eq(enrollments.studentId, student_id));
+    if (student_id) {
+      filterConditions.push(eq(enrollments.studentId, student_id.toString()));
     }
+
     // Class filter
-    if (typeof class_id === "string" && class_id.trim() !== "") {
-      const parsedClassId = Number(class_id);
-      if (isNaN(parsedClassId)) {
-        return res
-          .status(400)
-          .json({ error: "Invalid class_id", message: "Invalid class_id" });
-      }
-      conditions.push(eq(enrollments.classId, parsedClassId));
+    if (class_id) {
+      filterConditions.push(eq(enrollments.classId, +class_id));
     }
 
     // Build the SELECT query
@@ -54,15 +49,15 @@ router.get("/", async (req, res) => {
       .from(enrollments)
       .leftJoin(classes, eq(enrollments.classId, classes.id))
       .leftJoin(user, eq(enrollments.studentId, user.id))
-      .where(conditions.length ? and(...conditions) : undefined)
+      .where(filterConditions.length ? and(...filterConditions) : undefined)
       .orderBy(desc(enrollments.enrolledAt));
 
-    res.json({
+    res.status(200).json({
       data: enrollmentsList,
       message: "Enrollments retrieved successfully",
     });
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to fetch enrollments",
@@ -73,10 +68,10 @@ router.get("/", async (req, res) => {
 // Create enrollment
 router.post("/", async (req, res) => {
   try {
-    const { student_id, class_id } = req.body;
+    const { studentId, classId } = req.body;
 
     // Validate required fields
-    if (!student_id || !class_id) {
+    if (!studentId || !classId) {
       return res.status(400).json({
         error: "student_id and class_id are required",
         message: "Missing required enrollment fields",
@@ -86,8 +81,8 @@ router.post("/", async (req, res) => {
     const newEnrollment = await db
       .insert(enrollments)
       .values({
-        studentId: student_id,
-        classId: class_id,
+        studentId,
+        classId,
       })
       .returning();
 
@@ -95,8 +90,8 @@ router.post("/", async (req, res) => {
       data: newEnrollment[0],
       message: "Enrollment created successfully",
     });
-  } catch (err) {
-    console.error("ERROR in POST /enrollments:", err);
+  } catch (error) {
+    console.error("ERROR in POST /enrollments:", error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to create enrollment",
@@ -111,21 +106,22 @@ router.delete("/:id", async (req, res) => {
 
     const deletedEnrollment = await db
       .delete(enrollments)
-      .where(eq(enrollments.id, parseInt(id)))
+      .where(eq(enrollments.id, +id))
       .returning();
 
     if (!deletedEnrollment || deletedEnrollment.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "Enrollment not found", message: "Enrollment not found" });
+      return res.status(404).json({
+        error: "Enrollment not found",
+        message: "Enrollment not found",
+      });
     }
 
-    res.json({
+    res.status(200).json({
       data: deletedEnrollment[0],
       message: "Successfully left class",
     });
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to delete enrollment",

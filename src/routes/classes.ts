@@ -8,24 +8,24 @@ const router = express.Router();
 
 router.get("/", async (req, res) => {
   try {
-    const { search, subject_id, teacher_id, page, limit } = req.query;
+    const { search, subject_id, teacher_id, page = 1, limit = 10 } = req.query;
 
-    const queryConditions: any[] = [];
+    const filterConditions: any[] = [];
 
-    const currentPage = parseInt(page as string) || 1;
-    const limitPerPage = parseInt(limit as string) || 10;
+    const currentPage = Math.max(1, +page);
+    const limitPerPage = Math.max(1, +limit);
     const offset = (currentPage - 1) * limitPerPage;
 
     if (subject_id) {
-      queryConditions.push(eq(classes.subjectId, +subject_id));
+      filterConditions.push(eq(classes.subjectId, +subject_id));
     }
 
     if (teacher_id) {
-      queryConditions.push(eq(classes.teacherId, teacher_id.toString()));
+      filterConditions.push(eq(classes.teacherId, teacher_id.toString()));
     }
 
     if (search) {
-      queryConditions.push(or(ilike(classes.name, `%${search}%`)));
+      filterConditions.push(or(ilike(classes.name, `%${search}%`)));
     }
 
     let baseQuery = db
@@ -39,8 +39,8 @@ router.get("/", async (req, res) => {
       .leftJoin(user, eq(classes.teacherId, user.id))
       .$dynamic();
 
-    if (queryConditions.length > 0) {
-      baseQuery = baseQuery.where(and(...queryConditions));
+    if (filterConditions.length > 0) {
+      baseQuery = baseQuery.where(and(...filterConditions));
     }
 
     const allMatchedRecords = await baseQuery;
@@ -51,15 +51,13 @@ router.get("/", async (req, res) => {
       .limit(limitPerPage)
       .offset(offset);
 
-    return res.json({
-      data: {
-        items: paginatedClasses,
-        pagination: {
-          page: currentPage,
-          limit: limitPerPage,
-          total: totalRecords,
-          totalPages: Math.ceil(totalRecords / limitPerPage),
-        },
+    return res.status(200).json({
+      data: paginatedClasses,
+      pagination: {
+        page: currentPage,
+        limit: limitPerPage,
+        total: totalRecords,
+        totalPages: Math.ceil(totalRecords / limitPerPage),
       },
       message: "Classes retrieved successfully",
     });
@@ -74,9 +72,9 @@ router.get("/", async (req, res) => {
 
 router.get("/:id", async (req, res) => {
   try {
-    const classId = parseInt(req.params.id);
+    const { id } = req.params;
 
-    const classRecord = await db
+    const classRecords = await db
       .select({
         ...getTableColumns(classes),
         subject: subjects,
@@ -85,9 +83,9 @@ router.get("/:id", async (req, res) => {
       .from(classes)
       .leftJoin(subjects, eq(classes.subjectId, subjects.id))
       .leftJoin(user, eq(classes.teacherId, user.id))
-      .where(eq(classes.id, classId));
+      .where(eq(classes.id, +id));
 
-    if (!classRecord?.length) {
+    if (!classRecords?.length) {
       return res
         .status(404)
         .json({ error: "Class not found", message: "Class not found" });
@@ -103,12 +101,12 @@ router.get("/:id", async (req, res) => {
       })
       .from(enrollments)
       .innerJoin(user, eq(enrollments.studentId, user.id))
-      .where(eq(enrollments.classId, classId))
+      .where(eq(enrollments.classId, +id))
       .orderBy(desc(enrollments.enrolledAt));
 
-    return res.json({
+    return res.status(200).json({
       data: {
-        ...classRecord[0],
+        ...classRecords[0],
         students: enrolledStudents || [],
       },
       message: "Class details retrieved successfully",
@@ -124,27 +122,27 @@ router.get("/:id", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { name, subject_id, teacher_id } = req.body;
+    const { name, subjectId, teacherId } = req.body;
 
-    if (!name || !subject_id || !teacher_id) {
+    if (!name || !subjectId || !teacherId) {
       return res.status(400).json({
         error: "name, subject_id, and teacher_id are required",
         message: "Missing required class fields",
       });
     }
 
-    const createdClass = await db
+    const createdClasses = await db
       .insert(classes)
       .values({
         name,
-        subjectId: +subject_id,
-        teacherId: teacher_id.toString(),
+        subjectId: +subjectId,
+        teacherId: teacherId.toString(),
         inviteCode: crypto.randomUUID().substring(0, 6),
       })
       .returning();
 
     return res.status(201).json({
-      data: createdClass[0],
+      data: createdClasses[0],
       message: "Class created successfully",
     });
   } catch (error) {
@@ -158,20 +156,22 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const updatedClass = await db
+    const { id } = req.params;
+
+    const updatedClasses = await db
       .update(classes)
       .set(req.body)
-      .where(eq(classes.id, parseInt(req.params.id)))
+      .where(eq(classes.id, +id))
       .returning();
 
-    if (!updatedClass?.length) {
+    if (!updatedClasses?.length) {
       return res
         .status(404)
         .json({ error: "Class not found", message: "Class not found" });
     }
 
-    return res.json({
-      data: updatedClass[0],
+    return res.status(200).json({
+      data: updatedClasses[0],
       message: "Class updated successfully",
     });
   } catch (error) {
@@ -185,19 +185,21 @@ router.put("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const deletedClass = await db
+    const { id } = req.params;
+
+    const deletedClasses = await db
       .delete(classes)
-      .where(eq(classes.id, parseInt(req.params.id)))
+      .where(eq(classes.id, +id))
       .returning();
 
-    if (!deletedClass?.length) {
+    if (!deletedClasses?.length) {
       return res
         .status(404)
         .json({ error: "Class not found", message: "Class not found" });
     }
 
-    return res.json({
-      data: deletedClass[0],
+    return res.status(200).json({
+      data: deletedClasses[0],
       message: "Class deleted successfully",
     });
   } catch (error) {

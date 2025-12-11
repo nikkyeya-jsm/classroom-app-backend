@@ -1,6 +1,6 @@
 import express from "express";
 import { db } from "../db/index.js";
-import { eq, inArray, ilike, and, desc } from "drizzle-orm";
+import { eq, inArray, ilike, and, desc, sql } from "drizzle-orm";
 import { user } from "../db/schemas/auth.js";
 import type { UserRoles } from "@/types.js";
 
@@ -9,57 +9,56 @@ const router = express.Router();
 // Get all users with optional role filter, search by name, and pagination
 router.get("/", async (req, res) => {
   try {
-    const { roles, query, page, limit } = req.query;
-    const conditions: any[] = [];
+    const { role, search, page = 1, limit = 10 } = req.query;
+
+    const filterConditions: any[] = [];
 
     // Pagination
-    const pageNum = parseInt(page as string) || 1;
-    const limitNum = parseInt(limit as string) || 10;
-    const offset = (pageNum - 1) * limitNum;
+    const currentPage = Math.max(1, +page);
+    const limitPerPage = Math.max(1, +limit);
+    const offset = (currentPage - 1) * limitPerPage;
 
     // Role filter
-    if (roles && typeof roles === "string") {
-      const roleArray = roles
-        .split(",")
-        .map((role) => role.trim()) as UserRoles[];
-      conditions.push(inArray(user.role, roleArray));
+    if (role) {
+      filterConditions.push(eq(user.role, role as UserRoles));
     }
 
     // Name search
-    if (query && typeof query === "string") {
-      conditions.push(ilike(user.name, `%${query}%`));
+    if (search) {
+      filterConditions.push(ilike(user.name, `%${search}%`));
     }
 
-    // Get total count
-    const totalResult = await db
-      .select()
-      .from(user)
-      .where(and(...conditions));
-    const total = totalResult.length;
+    const whereClause =
+      filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
-    // Get paginated results
-    const users = await db
+    // Count total
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(user)
+      .where(whereClause);
+
+    const totalCount = countResult[0]?.count ?? 0;
+
+    const usersList = await db
       .select()
       .from(user)
-      .where(and(...conditions))
+      .where(whereClause)
       .orderBy(desc(user.createdAt))
-      .limit(limitNum)
+      .limit(limitPerPage)
       .offset(offset);
 
-    res.json({
-      data: {
-        users,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total,
-          totalPages: Math.ceil(total / limitNum),
-        },
+    res.status(200).json({
+      data: usersList,
+      pagination: {
+        page: currentPage,
+        limit: limitPerPage,
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limitPerPage),
       },
       message: "Users retrieved successfully",
     });
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to fetch users",
@@ -72,16 +71,20 @@ router.get("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const userData = await db.select().from(user).where(eq(user.id, id));
-    if (!userData || userData.length === 0) {
+    const userRecords = await db.select().from(user).where(eq(user.id, id));
+
+    if (!userRecords || userRecords.length === 0) {
       return res
         .status(404)
         .json({ error: "User not found", message: "User not found" });
     }
 
-    res.json({ data: userData, message: "User retrieved successfully" });
-  } catch (err) {
-    console.error(err);
+    res.status(200).json({
+      data: userRecords,
+      message: "User retrieved successfully",
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to fetch user",
@@ -94,23 +97,24 @@ router.put("/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const updatedUser = await db
+    const updatedUsers = await db
       .update(user)
       .set({ ...req.body })
       .where(eq(user.id, id))
       .returning();
 
-    if (!updatedUser || updatedUser.length === 0) {
+    if (!updatedUsers || updatedUsers.length === 0) {
       return res
         .status(404)
         .json({ error: "User not found", message: "User not found" });
     }
 
-    console.log("Updated user:", updatedUser);
-
-    res.json({ data: updatedUser, message: "User updated successfully" });
-  } catch (err) {
-    console.error(err);
+    res.status(200).json({
+      data: updatedUsers,
+      message: "User updated successfully",
+    });
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to update user",
@@ -123,23 +127,23 @@ router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const deletedUser = await db
+    const deletedUsers = await db
       .delete(user)
       .where(eq(user.id, id))
       .returning();
 
-    if (!deletedUser || deletedUser.length === 0) {
+    if (!deletedUsers || deletedUsers.length === 0) {
       return res
         .status(404)
         .json({ error: "User not found", message: "User not found" });
     }
 
-    res.json({
-      data: deletedUser[0],
+    res.status(200).json({
+      data: deletedUsers[0],
       message: "User deleted successfully",
     });
-  } catch (err) {
-    console.error(err);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       error: "Internal server error",
       message: "Failed to delete user",
