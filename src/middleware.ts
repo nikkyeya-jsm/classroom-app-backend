@@ -1,6 +1,7 @@
-import { aj } from "./lib/arcjet.js";
 import { slidingWindow } from "@arcjet/node";
-import type { UserRoles } from "./types.js";
+
+import { aj } from "#lib/arcjet";
+import type { UserRoles } from "#types";
 
 // Predefine role-based sliding window clients
 const slidingWindows = {

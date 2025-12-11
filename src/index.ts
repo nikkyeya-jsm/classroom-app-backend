@@ -5,12 +5,12 @@ AgentAPI.config();
 import express from "express";
 import cors from "cors";
 import { toNodeHandler } from "better-auth/node";
-import { auth } from "./lib/auth.js";
-// import middleware from "./middleware.js";
-import userRouter from "./routes/users.js";
-import subjectsRouter from "./routes/subjects.js";
-import classesRouter from "./routes/classes.js";
-import enrollmentsRouter from "./routes/enrollments.js";
+import { auth } from "#lib/auth";
+// import middleware from "#middleware";
+import userRouter from "#routes/users";
+import subjectsRouter from "#routes/subjects";
+import classesRouter from "#routes/classes";
+import enrollmentsRouter from "#routes/enrollments";
 
 const app = express();
 const PORT = process.env.PORT || 10000;

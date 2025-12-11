@@ -1,8 +1,9 @@
 import express from "express";
-import { db } from "../db/index.js";
-import { eq, inArray, ilike, and, desc, sql } from "drizzle-orm";
-import { user } from "../db/schemas/auth.js";
-import type { UserRoles } from "@/types.js";
+import { eq, ilike, and, desc, sql } from "drizzle-orm";
+
+import { db } from "#db/index";
+import { user } from "#db/schemas";
+import type { UserRoles } from "#types";
 
 const router = express.Router();
 

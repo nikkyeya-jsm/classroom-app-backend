@@ -1,2 +1,2 @@
-export * from "./auth.js";
-export * from "./app.js";
+export * from "#db/schemas/auth";
+export * from "#db/schemas/app";

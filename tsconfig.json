@@ -8,7 +8,12 @@
     // Path Mappings
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "#routes/*": ["./src/routes/*"],
+      "#db/*": ["./src/db/*"],
+      "#lib/*": ["./src/lib/*"],
+      "#middleware": ["./src/middleware"],
+      "#types": ["./src/types"],
+      "#/*": ["./src/*"]
     },
 
     // Environment Settings
