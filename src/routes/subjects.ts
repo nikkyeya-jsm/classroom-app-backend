@@ -1,64 +1,72 @@
-import express from 'express';
-import { db } from '../db/index.js';
-import { eq, ilike, or, and, desc } from 'drizzle-orm';
-import { subjects } from '../db/schema.js';
+import express from "express";
+import { db } from "../db/index.js";
+import { eq, ilike, or, and, desc, sql } from "drizzle-orm";
+import { subjects } from "../db/schemas/app.js";
 
 const router = express.Router();
 
 // Get all subjects with optional search, department filter, and pagination
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { searchQuery, department, page, limit } = req.query;
-    const conditions: any[] = [];
+    const { query, department, page = "1", limit = "10" } = req.query;
 
-    // Pagination
-    const pageNum = parseInt(page as string) || 1;
-    const limitNum = parseInt(limit as string) || 10;
+    // Pagination (validated)
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Number(limit));
     const offset = (pageNum - 1) * limitNum;
 
-    // Department filter
-    if (department && typeof department === 'string') {
+    // Build conditions (typed)
+    const conditions: (ReturnType<typeof eq> | ReturnType<typeof or>)[] = [];
+
+    if (typeof department === "string" && department.trim() !== "") {
       conditions.push(eq(subjects.department, department));
     }
 
-    // Search filter
-    if (searchQuery && typeof searchQuery === 'string') {
+    if (typeof query === "string" && query.trim() !== "") {
       conditions.push(
         or(
-          ilike(subjects.name, `%${searchQuery}%`),
-          ilike(subjects.code, `%${searchQuery}%`),
+          ilike(subjects.name, `%${query}%`),
+          ilike(subjects.code, `%${query}%`)
         )
       );
     }
 
-    // Get total count
-    const totalResult = conditions.length > 0
-      ? await db.select().from(subjects).where(and(...conditions))
-      : await db.select().from(subjects);
-    const total = totalResult.length;
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Get paginated results
-    const subjectsList = conditions.length > 0
-      ? await db.select().from(subjects).where(and(...conditions)).orderBy(desc(subjects.createdAt)).limit(limitNum).offset(offset)
-      : await db.select().from(subjects).orderBy(desc(subjects.createdAt)).limit(limitNum).offset(offset);
+    // Count total (fast!)
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(subjects)
+      .where(whereClause);
+
+    const count = result[0]?.count ?? 0;
+
+    // Fetch paginated results
+    const subjectsList = await db
+      .select()
+      .from(subjects)
+      .where(whereClause)
+      .orderBy(desc(subjects.createdAt))
+      .limit(limitNum)
+      .offset(offset);
 
     res.json({
       data: subjectsList,
       pagination: {
         page: pageNum,
         limit: limitNum,
-        total,
-        totalPages: Math.ceil(total / limitNum),
+        total: Number(count),
+        totalPages: Math.ceil(Number(count) / limitNum),
       },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("GET /subjects error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Get subject by ID
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const subject = await db
@@ -67,24 +75,24 @@ router.get('/:id', async (req, res) => {
       .where(eq(subjects.id, parseInt(id)));
 
     if (!subject || subject.length === 0) {
-      return res.status(404).json({ error: 'Subject not found' });
+      return res.status(404).json({ error: "Subject not found" });
     }
 
     res.json(subject);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Create new subject
-router.post('/', async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const { name, code, description, department } = req.body;
 
     // Validate required fields
     if (!name || !code) {
-      return res.status(400).json({ error: 'Name and code are required' });
+      return res.status(400).json({ error: "Name and code are required" });
     }
 
     const newSubject = await db
@@ -102,16 +110,16 @@ router.post('/', async (req, res) => {
     console.error(err);
 
     // Handle unique constraint violation (duplicate code)
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'Subject code already exists' });
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Subject code already exists" });
     }
 
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Update subject
-router.put('/:id', async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const { name, code, description, department } = req.body;
@@ -128,7 +136,7 @@ router.put('/:id', async (req, res) => {
       .returning();
 
     if (!updatedSubject || updatedSubject.length === 0) {
-      return res.status(404).json({ error: 'Subject not found' });
+      return res.status(404).json({ error: "Subject not found" });
     }
 
     res.json(updatedSubject[0]);
@@ -136,16 +144,16 @@ router.put('/:id', async (req, res) => {
     console.error(err);
 
     // Handle unique constraint violation (duplicate code)
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'Subject code already exists' });
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Subject code already exists" });
     }
 
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Delete subject
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -155,13 +163,16 @@ router.delete('/:id', async (req, res) => {
       .returning();
 
     if (!deletedSubject || deletedSubject.length === 0) {
-      return res.status(404).json({ error: 'Subject not found' });
+      return res.status(404).json({ error: "Subject not found" });
     }
 
-    res.json({ message: 'Subject deleted successfully', subject: deletedSubject[0] });
+    res.json({
+      message: "Subject deleted successfully",
+      subject: deletedSubject[0],
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
