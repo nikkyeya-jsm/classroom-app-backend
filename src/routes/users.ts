@@ -47,17 +47,23 @@ router.get("/", async (req, res) => {
       .offset(offset);
 
     res.json({
-      data: users,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        totalPages: Math.ceil(total / limitNum),
+      data: {
+        users,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
       },
+      message: "Users retrieved successfully",
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch users",
+    });
   }
 });
 
@@ -67,12 +73,19 @@ router.get("/:id", async (req, res) => {
 
   try {
     const userData = await db.select().from(user).where(eq(user.id, id));
-    if (!userData) return res.status(404).json({ error: "User not found" });
+    if (!userData || userData.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "User not found", message: "User not found" });
+    }
 
-    res.json(userData);
+    res.json({ data: userData, message: "User retrieved successfully" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch user",
+    });
   }
 });
 
@@ -87,16 +100,21 @@ router.put("/:id", async (req, res) => {
       .where(eq(user.id, id))
       .returning();
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
+    if (!updatedUser || updatedUser.length === 0) {
+      return res
+        .status(404)
+        .json({ error: "User not found", message: "User not found" });
     }
 
     console.log("Updated user:", updatedUser);
 
-    res.json(updatedUser);
+    res.json({ data: updatedUser, message: "User updated successfully" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to update user",
+    });
   }
 });
 
@@ -111,13 +129,21 @@ router.delete("/:id", async (req, res) => {
       .returning();
 
     if (!deletedUser || deletedUser.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+      return res
+        .status(404)
+        .json({ error: "User not found", message: "User not found" });
     }
 
-    res.json({ message: "User deleted successfully", user: deletedUser[0] });
+    res.json({
+      data: deletedUser[0],
+      message: "User deleted successfully",
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to delete user",
+    });
   }
 });
 

@@ -65,7 +65,10 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch classes",
+    });
   }
 });
 
@@ -85,7 +88,9 @@ router.get("/:id", async (req, res) => {
       .where(eq(classes.id, classId));
 
     if (!classRecord?.length) {
-      return res.status(404).json({ error: "Class not found" });
+      return res
+        .status(404)
+        .json({ error: "Class not found", message: "Class not found" });
     }
 
     const enrolledStudents = await db
@@ -110,7 +115,10 @@ router.get("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch class details",
+    });
   }
 });
 
@@ -121,6 +129,7 @@ router.post("/", async (req, res) => {
     if (!name || !subject_id || !teacher_id) {
       return res.status(400).json({
         error: "name, subject_id, and teacher_id are required",
+        message: "Missing required class fields",
       });
     }
 
@@ -140,7 +149,10 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("ERROR in POST /classes:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to create class",
+    });
   }
 });
 
@@ -153,7 +165,9 @@ router.put("/:id", async (req, res) => {
       .returning();
 
     if (!updatedClass?.length) {
-      return res.status(404).json({ error: "Class not found" });
+      return res
+        .status(404)
+        .json({ error: "Class not found", message: "Class not found" });
     }
 
     return res.json({
@@ -162,7 +176,10 @@ router.put("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to update class",
+    });
   }
 });
 
@@ -174,7 +191,9 @@ router.delete("/:id", async (req, res) => {
       .returning();
 
     if (!deletedClass?.length) {
-      return res.status(404).json({ error: "Class not found" });
+      return res
+        .status(404)
+        .json({ error: "Class not found", message: "Class not found" });
     }
 
     return res.json({
@@ -183,7 +202,10 @@ router.delete("/:id", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to delete class",
+    });
   }
 });
 

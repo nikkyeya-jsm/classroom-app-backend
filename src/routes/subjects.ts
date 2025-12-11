@@ -51,17 +51,23 @@ router.get("/", async (req, res) => {
       .offset(offset);
 
     res.json({
-      data: subjectsList,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total: Number(count),
-        totalPages: Math.ceil(Number(count) / limitNum),
+      data: {
+        subjects: subjectsList,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: Number(count),
+          totalPages: Math.ceil(Number(count) / limitNum),
+        },
       },
+      message: "Subjects retrieved successfully",
     });
   } catch (err) {
     console.error("GET /subjects error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch subjects",
+    });
   }
 });
 
@@ -75,13 +81,18 @@ router.get("/:id", async (req, res) => {
       .where(eq(subjects.id, parseInt(id)));
 
     if (!subject || subject.length === 0) {
-      return res.status(404).json({ error: "Subject not found" });
+      return res
+        .status(404)
+        .json({ error: "Subject not found", message: "Subject not found" });
     }
 
-    res.json(subject);
+    res.json({ data: subject, message: "Subject retrieved successfully" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch subject",
+    });
   }
 });
 
@@ -92,7 +103,10 @@ router.post("/", async (req, res) => {
 
     // Validate required fields
     if (!name || !code) {
-      return res.status(400).json({ error: "Name and code are required" });
+      return res.status(400).json({
+        error: "Name and code are required",
+        message: "Missing required subject fields",
+      });
     }
 
     const newSubject = await db
@@ -105,16 +119,25 @@ router.post("/", async (req, res) => {
       })
       .returning();
 
-    res.status(201).json(newSubject[0]);
+    res.status(201).json({
+      data: newSubject[0],
+      message: "Subject created successfully",
+    });
   } catch (err: any) {
     console.error(err);
 
     // Handle unique constraint violation (duplicate code)
     if (err.code === "23505") {
-      return res.status(409).json({ error: "Subject code already exists" });
+      return res.status(409).json({
+        error: "Subject code already exists",
+        message: "Subject code already exists",
+      });
     }
 
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to create subject",
+    });
   }
 });
 
@@ -136,19 +159,30 @@ router.put("/:id", async (req, res) => {
       .returning();
 
     if (!updatedSubject || updatedSubject.length === 0) {
-      return res.status(404).json({ error: "Subject not found" });
+      return res
+        .status(404)
+        .json({ error: "Subject not found", message: "Subject not found" });
     }
 
-    res.json(updatedSubject[0]);
+    res.json({
+      data: updatedSubject[0],
+      message: "Subject updated successfully",
+    });
   } catch (err: any) {
     console.error(err);
 
     // Handle unique constraint violation (duplicate code)
     if (err.code === "23505") {
-      return res.status(409).json({ error: "Subject code already exists" });
+      return res.status(409).json({
+        error: "Subject code already exists",
+        message: "Subject code already exists",
+      });
     }
 
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to update subject",
+    });
   }
 });
 
@@ -163,16 +197,21 @@ router.delete("/:id", async (req, res) => {
       .returning();
 
     if (!deletedSubject || deletedSubject.length === 0) {
-      return res.status(404).json({ error: "Subject not found" });
+      return res
+        .status(404)
+        .json({ error: "Subject not found", message: "Subject not found" });
     }
 
     res.json({
+      data: deletedSubject[0],
       message: "Subject deleted successfully",
-      subject: deletedSubject[0],
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to delete subject",
+    });
   }
 });
 

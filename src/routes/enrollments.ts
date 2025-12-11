@@ -21,7 +21,9 @@ router.get("/", async (req, res) => {
     if (typeof class_id === "string" && class_id.trim() !== "") {
       const parsedClassId = Number(class_id);
       if (isNaN(parsedClassId)) {
-        return res.status(400).json({ error: "Invalid class_id" });
+        return res
+          .status(400)
+          .json({ error: "Invalid class_id", message: "Invalid class_id" });
       }
       conditions.push(eq(enrollments.classId, parsedClassId));
     }
@@ -55,10 +57,16 @@ router.get("/", async (req, res) => {
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(enrollments.enrolledAt));
 
-    res.json(enrollmentsList);
+    res.json({
+      data: enrollmentsList,
+      message: "Enrollments retrieved successfully",
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to fetch enrollments",
+    });
   }
 });
 
@@ -69,9 +77,10 @@ router.post("/", async (req, res) => {
 
     // Validate required fields
     if (!student_id || !class_id) {
-      return res
-        .status(400)
-        .json({ error: "student_id and class_id are required" });
+      return res.status(400).json({
+        error: "student_id and class_id are required",
+        message: "Missing required enrollment fields",
+      });
     }
 
     const newEnrollment = await db
@@ -82,10 +91,16 @@ router.post("/", async (req, res) => {
       })
       .returning();
 
-    res.status(201).json(newEnrollment[0]);
+    res.status(201).json({
+      data: newEnrollment[0],
+      message: "Enrollment created successfully",
+    });
   } catch (err) {
     console.error("ERROR in POST /enrollments:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to create enrollment",
+    });
   }
 });
 
@@ -100,16 +115,21 @@ router.delete("/:id", async (req, res) => {
       .returning();
 
     if (!deletedEnrollment || deletedEnrollment.length === 0) {
-      return res.status(404).json({ error: "Enrollment not found" });
+      return res
+        .status(404)
+        .json({ error: "Enrollment not found", message: "Enrollment not found" });
     }
 
     res.json({
+      data: deletedEnrollment[0],
       message: "Successfully left class",
-      enrollment: deletedEnrollment[0],
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({
+      error: "Internal server error",
+      message: "Failed to delete enrollment",
+    });
   }
 });
 
